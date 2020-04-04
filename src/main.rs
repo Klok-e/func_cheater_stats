@@ -49,11 +49,15 @@ type SledKey = ChatId;
 
 struct Persist {
     db: sled::Db,
+    messages: sled::Db,
 }
 
 impl Persist {
-    fn new(db: sled::Db) -> Self {
-        Self { db }
+    fn new(db: sled::Db, msg_db: sled::Db) -> Self {
+        Self {
+            db,
+            messages: msg_db,
+        }
     }
 
     fn add_user(&self, chat_id: ChatId, user: CodeUser) -> Result<(), MainError> {
@@ -127,8 +131,9 @@ async fn main() -> Result<(), MainError> {
         .chain(fern::log_file("logs.log")?)
         .apply()?;
 
+    let messages = sled::open("messages")?;
     let db = sled::open("users")?;
-    let mut persist = Arc::new(Persist { db });
+    let mut persist = Arc::new(Persist::new(db, messages));
 
     let token = std::env::var("TELEGRAM_TOKEN")
         .expect("TELEGRAM_TOKEN env variable expected but wasn't found");
