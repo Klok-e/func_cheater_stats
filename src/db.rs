@@ -79,7 +79,7 @@ impl Persist {
             Some(val) => serde_json::from_slice(val.as_ref())?,
         };
         let user1 = user.clone();
-        map.insert(user1.telegram_id, user1.codewars_name);
+        map.insert(user1.telegram_id, user1);
         self.db
             .insert(
                 serde_json::to_string(&chat_id)?.as_bytes(),
@@ -91,7 +91,7 @@ impl Persist {
     }
 
     pub fn remove_user(&self, chat_id: ChatId, user_to_remove: UserId) -> Result<(), MainError> {
-        let mut users: HashMap<UserId, String> = self
+        let mut users: HashMap<UserId, CodeUser> = self
             .db
             .get(serde_json::to_string(&chat_id)?.as_bytes())
             .unwrap()
@@ -112,7 +112,7 @@ impl Persist {
     pub fn clear_users(&self, chat_id: ChatId) -> Result<(), MainError> {
         self.db.insert(
             serde_json::to_string(&chat_id)?.as_bytes(),
-            serde_json::to_string(&HashMap::<UserId, String>::new())?.as_bytes(),
+            serde_json::to_string(&HashMap::<UserId, CodeUser>::new())?.as_bytes(),
         )?;
         log::info!("users cleared in chat {:?}", &chat_id);
         Ok(())
@@ -127,7 +127,7 @@ impl Persist {
         Ok(())
     }
 
-    pub fn get_users(&self, chat_id: ChatId) -> Result<HashMap<UserId, String>, MainError> {
+    pub fn get_users(&self, chat_id: ChatId) -> Result<HashMap<UserId, CodeUser>, MainError> {
         Ok(self
             .db
             .get(serde_json::to_string(&chat_id)?.as_bytes())
@@ -135,5 +135,18 @@ impl Persist {
             .map_or(Ok(HashMap::new()), |v| -> Result<_, serde_json::Error> {
                 Ok(serde_json::from_slice(v.as_ref())?)
             })?)
+    }
+
+    pub fn get_messages(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>, MainError> {
+        Ok(
+            match self
+                .db
+                .get(serde_json::to_string(&chat_id)?.as_bytes())
+                .unwrap()
+            {
+                Some(vec) => serde_json::from_slice(vec.as_ref())?,
+                None => Vec::new(),
+            },
+        )
     }
 }

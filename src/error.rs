@@ -20,4 +20,5 @@ pub enum MainError {
     LogInit(log::SetLoggerError),
     Sled(sled::Error),
     Serde(serde_json::Error),
+    CodewarsApi(reqwest::Error),
 }

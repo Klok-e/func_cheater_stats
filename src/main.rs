@@ -1,6 +1,8 @@
 use crate::db::{ChatId, ChatMessage, CodeUser, Persist, UserId};
 use crate::error::MainError;
+use crate::message_parse::is_codewars_solution;
 use crate::parsing_types::{Text, TextData};
+use crate::stats::compute_stats;
 use derive_more::{Display, Error, From};
 use lazy_static::lazy_static;
 use regex;
@@ -16,9 +18,12 @@ use teloxide::types::MessageKind;
 use teloxide::utils::command::BotCommand;
 use tokio::prelude::*;
 
+mod codewars_requests;
 mod db;
 mod error;
+mod message_parse;
 mod parsing_types;
+mod stats;
 
 #[derive(BotCommand)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -33,6 +38,8 @@ enum Command {
     Clear,
     #[command(description = "show stats")]
     ShowStats,
+    #[command(description = "show solved")]
+    ShowSolved,
 }
 
 #[tokio::main]
@@ -56,6 +63,13 @@ async fn main() -> Result<(), MainError> {
     let db = sled::open("users")?;
     let persist = Arc::new(Persist::new(db, messages));
 
+    // remove tmp dir
+    let tmp = Path::new("tmp/");
+    if tmp.exists() {
+        std::fs::remove_dir_all(tmp).unwrap();
+    }
+
+    // import messages
     let data_path = Path::new("exported_messages.json");
     if data_path.exists() {
         use parsing_types::ExportedData;
@@ -133,15 +147,6 @@ async fn store_message(cx: DispatcherHandlerCx<Message>, db: Arc<Persist>) -> Re
         }
     }
     Ok(())
-}
-
-lazy_static! {
-    static ref IS_SOLUTION_REGEX: regex::Regex =
-        regex::Regex::new(r"^\d\D*https://pastebin.com/").unwrap();
-}
-
-fn is_codewars_solution(msg: &str) -> bool {
-    IS_SOLUTION_REGEX.is_match(msg)
 }
 
 async fn handle_messages(rx: DispatcherHandlerRx<Message>, db: Arc<Persist>) {
@@ -229,21 +234,39 @@ async fn answer_command(
                     cx.answer(answer_text).send().await?;
                 }
                 Command::ShowStats => {
-                    let text;
                     if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
-                        text = format!("Not implemented yet. Here's a list of all users to keep yourself entertained:\n{}",
-                                       us.iter().map(|u| format!("{:?}", u)).collect::<Vec<_>>().join("\n"));
+                        if let Ok(msg) = db.get_messages(ChatId(cx.chat_id())).unwrap() {
+                            cx.answer_photo(compute_stats(us, msg)).await?;
+                        } else {
+                            cx.answer("Internal error 1").send().await?;
+                        }
                     } else {
-                        text = "Couldn't get user data due to an internal error".to_owned();
+                        cx.answer("Couldn't get user data due to an internal error")
+                            .send()
+                            .await?;
                     };
-
-                    cx.answer(text).send().await?;
                 }
                 Command::Clear => {
                     let mut answer = "Cleared all users for this chat";
                     if !db.clear_users(ChatId(cx.update.chat_id())).is_ok() {
                         answer = "Couldn't clear users due to a serialization failure"
                     }
+                    cx.answer(answer).send().await?;
+                }
+                Command::ShowSolved => {
+                    let messages = match db.get_messages(ChatId(cx.chat_id())) {
+                        Ok(msgs) => msgs,
+                        Err(e) => {
+                            log::warn!("Error while getting messages {}", e);
+                            Vec::new()
+                        }
+                    };
+                    let answer = if messages.is_empty() {
+                        "No solved katas"
+                    } else {
+                        format!("The following katas were solved:\n{}",);
+                    };
+
                     cx.answer(answer).send().await?;
                 }
             }
