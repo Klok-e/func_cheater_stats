@@ -12,11 +12,15 @@ pub async fn get_completed(username: &str) -> Result<Vec<CompletedKata>, MainErr
     }
 
     let mut pages: Vec<CompletedKatas> = vec![serde_json::from_str(
-        reqwest::get(url(username, 0)).await?.text().await?.as_str(),
+        reqwest::get(&url(username, 0))
+            .await?
+            .text()
+            .await?
+            .as_str(),
     )?];
     for page in 1..pages.first().unwrap().total_pages {
         let new = serde_json::from_str(
-            reqwest::get(url(username, page))
+            reqwest::get(&url(username, page))
                 .await?
                 .text()
                 .await?

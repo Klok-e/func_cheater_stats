@@ -1,9 +1,10 @@
 use crate::db::{ChatId, ChatMessage, CodeUser, Persist, UserId};
 use crate::error::MainError;
-use crate::message_parse::is_codewars_solution;
+use crate::message_parse::{is_codewars_solution, kata_name};
 use crate::parsing_types::{Text, TextData};
 use crate::stats::compute_stats;
 use derive_more::{Display, Error, From};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,7 @@ use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
 use teloxide::prelude::*;
-use teloxide::types::MessageKind;
+use teloxide::types::{InputFile, MessageKind};
 use teloxide::utils::command::BotCommand;
 use tokio::prelude::*;
 
@@ -202,28 +203,29 @@ async fn answer_command(
                     let answer_text;
                     if args.len() == 1 {
                         let codewars_name = args.first().unwrap().to_string();
-                        if !db
-                            .add_user(
-                                ChatId(cx.update.chat_id()),
-                                CodeUser {
-                                    telegram_id: UserId(from.id),
-                                    codewars_name: codewars_name.clone(),
-                                    username: from.username.clone(),
-                                    firstname: from.first_name.clone(),
-                                },
-                            )
-                            .is_ok()
-                        {
-                            answer_text = format!(
-                                "Couldn't add user {} with codewars username {} because of a serialization failure",
-                                from.first_name,
-                                &codewars_name
-                            );
-                        } else {
-                            answer_text = format!(
-                                "Added user {} with codewars username {}",
-                                from.first_name, &codewars_name
-                            );
+                        match db.add_user(
+                            ChatId(cx.update.chat_id()),
+                            CodeUser {
+                                telegram_id: UserId(from.id),
+                                codewars_name: codewars_name.clone(),
+                                username: from.username.clone(),
+                                firstname: from.first_name.clone(),
+                            },
+                        ) {
+                            Err(e) => {
+                                answer_text = format!(
+                                    "Couldn't add user {} with codewars username {} because of a serialization failure",
+                                    from.first_name,
+                                    &codewars_name
+                                );
+                                log::warn!("Error {} while adding a new user", e);
+                            }
+                            Ok(_) => {
+                                answer_text = format!(
+                                    "Added user {} with codewars username {}",
+                                    from.first_name, &codewars_name
+                                );
+                            }
                         }
                     } else {
                         answer_text = format!(
@@ -235,8 +237,12 @@ async fn answer_command(
                 }
                 Command::ShowStats => {
                     if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
-                        if let Ok(msg) = db.get_messages(ChatId(cx.chat_id())).unwrap() {
-                            cx.answer_photo(compute_stats(us, msg)).await?;
+                        if let Ok(msg) = db.get_messages(ChatId(cx.chat_id())) {
+                            if let Ok(path) = compute_stats(us, msg).await {
+                                cx.answer_photo(InputFile::file(path)).send().await?;
+                            } else {
+                                cx.answer("Internal error 2").send().await?;
+                            }
                         } else {
                             cx.answer("Internal error 1").send().await?;
                         }
@@ -262,9 +268,15 @@ async fn answer_command(
                         }
                     };
                     let answer = if messages.is_empty() {
-                        "No solved katas"
+                        "No solved katas".to_owned()
                     } else {
-                        format!("The following katas were solved:\n{}",);
+                        let messages: Vec<_> = messages
+                            .into_iter()
+                            .map(|msg| kata_name(msg.text.as_str()))
+                            .unique()
+                            .sorted()
+                            .collect();
+                        format!("The following katas were solved:\n{}", messages.join("\n"))
                     };
 
                     cx.answer(answer).send().await?;

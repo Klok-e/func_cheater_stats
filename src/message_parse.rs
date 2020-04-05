@@ -19,7 +19,7 @@ use tokio::prelude::*;
 lazy_static! {
     static ref IS_SOLUTION_REGEX: regex::Regex =
         regex::Regex::new(r"^\d\D*https://pastebin.com/").unwrap();
-    static ref KATA_KYU: regex::Regex = regex::Regex::new(r"^\d( kyu|)").unwrap();
+    static ref KATA_KYU: regex::Regex = regex::Regex::new(r"^\d(?:\s*kyu|\s)").unwrap();
     static ref LINK: regex::Regex = regex::Regex::new(r"https://pastebin\.com/(.|\s)*").unwrap();
 }
 
@@ -27,11 +27,11 @@ pub fn is_codewars_solution(msg: &str) -> bool {
     IS_SOLUTION_REGEX.is_match(msg)
 }
 
-pub fn kata_name(msg: &str) -> &str {
+pub fn kata_name(msg: &str) -> String {
     if !is_codewars_solution(msg) {
         panic!("Text {} is not a codewars solution", msg);
     }
     let name_link = KATA_KYU.replace(msg, "");
     let name = LINK.replace(name_link.as_ref(), "");
-    name.trim()
+    name.trim().to_owned()
 }
