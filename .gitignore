@@ -1,3 +1,6 @@
 /target
 /logs.log
 /users
+/messages
+/used_exported_messages.json
+/exported_messages.json
