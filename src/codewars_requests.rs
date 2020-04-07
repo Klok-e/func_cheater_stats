@@ -1,30 +1,46 @@
-use crate::error::MainError;
+use crate::error::{CodewarsApiError, MainError};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
 pub async fn get_completed(username: &str) -> Result<Vec<CompletedKata>, MainError> {
     fn url(user: &str, page: i32) -> String {
-        format!(
+        let url = format!(
             "https://www.codewars.com/api/v1/users/{}/code-challenges/completed?page={}",
             user, page
-        )
+        );
+        log::info!("Request: {}", &url);
+        url
+    }
+    fn parse(pages: CodewarsResponse, username: &str) -> Result<CompletedKatas, MainError> {
+        Ok(match pages {
+            CodewarsResponse::Success(katas) => Ok(katas),
+            CodewarsResponse::Fail { reason, .. } if reason == "not found" => {
+                Err(CodewarsApiError::NotFound(username.to_owned()))
+            }
+            CodewarsResponse::Fail { reason, .. } => panic!("unknown error: {}", reason),
+        }?)
     }
 
-    let mut pages: Vec<CompletedKatas> = vec![serde_json::from_str(
+    let pages: CodewarsResponse = serde_json::from_str(
         reqwest::get(&url(username, 0))
             .await?
             .text()
             .await?
             .as_str(),
-    )?];
+    )?;
+    let mut pages = vec![parse(pages, username)?];
+
     for page in 1..pages.first().unwrap().total_pages {
-        let new = serde_json::from_str(
-            reqwest::get(&url(username, page))
-                .await?
-                .text()
-                .await?
-                .as_str(),
+        let new = parse(
+            serde_json::from_str(
+                reqwest::get(&url(username, page))
+                    .await?
+                    .text()
+                    .await?
+                    .as_str(),
+            )?,
+            username,
         )?;
         pages.push(new)
     }
@@ -32,6 +48,12 @@ pub async fn get_completed(username: &str) -> Result<Vec<CompletedKata>, MainErr
         acc.append(&mut page.data);
         acc
     }))
+}
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(untagged)]
+enum CodewarsResponse {
+    Fail { success: bool, reason: String },
+    Success(CompletedKatas),
 }
 
 #[derive(Deserialize, Serialize, Debug)]

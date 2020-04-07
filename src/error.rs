@@ -20,5 +20,13 @@ pub enum MainError {
     LogInit(log::SetLoggerError),
     Sled(sled::Error),
     Serde(serde_json::Error),
-    CodewarsApi(reqwest::Error),
+    Network(reqwest::Error),
+    CodewarsApi(CodewarsApiError),
 }
+
+#[derive(Debug, Display)]
+pub enum CodewarsApiError {
+    NotFound(String),
+}
+
+impl Error for CodewarsApiError {}

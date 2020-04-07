@@ -2,10 +2,14 @@ use crate::codewars_requests::get_completed;
 use crate::db::{ChatMessage, CodeUser, UserId};
 use crate::error::MainError;
 use crate::message_parse::kata_name;
+use itertools::Itertools;
+use plotlib::grid::Grid;
 use plotlib::style::BoxStyle;
+use plotlib::view::View;
 use plotlib::{page, repr, style, view};
 use resvg::usvg;
 use std::collections::HashMap;
+use std::iter::once;
 use std::path::{Path, PathBuf};
 use svg;
 use uuid;
@@ -15,7 +19,7 @@ pub async fn compute_stats(
     messages: Vec<ChatMessage>,
 ) -> Result<PathBuf, MainError> {
     let mut user_stats = Vec::new();
-
+    let mut maxy = 5;
     for user in users.values() {
         let solved_in_scala: Vec<_> = get_completed(user.codewars_name.as_str())
             .await?
@@ -26,17 +30,45 @@ pub async fn compute_stats(
             .iter()
             .filter(|msg| msg.from == user.telegram_id)
             .count();
-        user_stats.push((user.clone(), solved_in_scala.len(), sent_to_chat))
+        user_stats.push((user.clone(), solved_in_scala.len(), sent_to_chat));
+
+        maxy = solved_in_scala.len().max(sent_to_chat);
     }
-    let plot = repr::BarChart::new(10.)
-        .label("shit")
-        .style(&BoxStyle::new().fill("blue"));
-    let view = view::CategoricalView::new()
-        .add(plot)
-        .y_range(0., 20.)
-        .x_ticks(&["shit".to_owned(), "pinus".to_owned()])
+
+    let bars: Vec<repr::BarChart> = user_stats
+        .into_iter()
+        .map(|(u, so, se)| {
+            let label = once(Some(u.firstname))
+                .chain(once(u.username))
+                .flatten()
+                .join("_");
+            once(
+                repr::BarChart::new(so as f64)
+                    .label(format!("{} solved", label))
+                    .style(&BoxStyle::new().fill("orange")),
+            )
+            .chain(once(
+                repr::BarChart::new(se as f64)
+                    .label(format!("{} sent", label))
+                    .style(&BoxStyle::new().fill("green")),
+            ))
+        })
+        .flatten()
+        .collect();
+
+    let mut view = view::CategoricalView::new()
+        .x_ticks(
+            bars.iter()
+                .map(|b| b.get_label().clone())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+        .y_range(0., maxy as f64)
         .x_label("user")
         .y_label("katas");
+    for bar in bars {
+        view = view.add(bar)
+    }
     Ok(to_image(page::Page::single(&view)))
 }
 

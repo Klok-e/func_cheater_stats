@@ -1,5 +1,5 @@
 use crate::db::{ChatId, ChatMessage, CodeUser, Persist, UserId};
-use crate::error::MainError;
+use crate::error::{CodewarsApiError, MainError};
 use crate::message_parse::{is_codewars_solution, kata_name};
 use crate::parsing_types::{Text, TextData};
 use crate::stats::compute_stats;
@@ -238,10 +238,20 @@ async fn answer_command(
                 Command::ShowStats => {
                     if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
                         if let Ok(msg) = db.get_messages(ChatId(cx.chat_id())) {
-                            if let Ok(path) = compute_stats(us, msg).await {
-                                cx.answer_photo(InputFile::file(path)).send().await?;
-                            } else {
-                                cx.answer("Internal error 2").send().await?;
+                            match compute_stats(us, msg).await {
+                                Ok(path) => {
+                                    cx.answer_photo(InputFile::file(path)).send().await?;
+                                }
+                                Err(MainError::CodewarsApi(CodewarsApiError::NotFound(name))) => {
+                                    cx.answer(format!("User not found in Codewars API: {}", name))
+                                        .send()
+                                        .await?;
+                                }
+                                Err(e) => {
+                                    cx.answer(format!("Error while getting stats: {}", e))
+                                        .send()
+                                        .await?;
+                                }
                             }
                         } else {
                             cx.answer("Internal error 1").send().await?;
