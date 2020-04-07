@@ -153,7 +153,7 @@ async fn store_message(cx: DispatcherHandlerCx<Message>, db: Arc<Persist>) -> Re
 async fn handle_messages(rx: DispatcherHandlerRx<Message>, db: Arc<Persist>) {
     rx.for_each_concurrent(None, |cx| async {
         if let Some(text) = cx.update.text() {
-            if let Some((command, args)) = Command::parse(text, "CodeWarsCheatStatsBot") {
+            if let Some((command, args)) = Command::parse(text, "CodeWarsCheatStats_bot") {
                 // handle commands
                 answer_command(&cx, command, db.clone(), args)
                     .await
