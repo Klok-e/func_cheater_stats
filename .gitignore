@@ -2,7 +2,8 @@
 /logs.log
 /users
 /messages
-/used_exported_messages.json
 /exported_messages.json
+/used_exported_messages.json
 /tmp
 /imported_msgs
+/was_imported

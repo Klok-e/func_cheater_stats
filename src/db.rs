@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sled::IVec;
 use smart_default::SmartDefault;
 use std::collections::HashMap;
+use std::convert::identity;
 use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
@@ -19,7 +20,7 @@ use tokio::prelude::*;
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Copy, Clone)]
 pub struct ChatId(pub i64);
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Clone)]
 pub struct ChatName(pub String);
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Copy, Clone)]
@@ -44,50 +45,121 @@ pub struct Persist {
     users: TypedDb<ChatId, HashMap<UserId, CodeUser>>,
     messages: TypedDb<ChatId, Vec<ChatMessage>>,
     imported_messages: TypedDb<ChatName, Vec<ChatMessage>>,
+    was_chat_imported: TypedDb<ChatId, bool>,
 }
 
 impl Persist {
-    pub fn new(db: sled::Db, msg_db: sled::Db, imported_messages: sled::Db) -> Self {
+    pub fn new(
+        db: sled::Db,
+        msg_db: sled::Db,
+        imported_messages: sled::Db,
+        was_chat_imported: sled::Db,
+    ) -> Self {
         Self {
             users: TypedDb::new(db),
             messages: TypedDb::new(msg_db),
             imported_messages: TypedDb::new(imported_messages),
+            was_chat_imported: TypedDb::new(was_chat_imported),
         }
     }
 
     pub fn add_message(&self, chat_id: ChatId, msg: ChatMessage) -> Result<(), MainError> {
-        let mut messages = match self.messages.get(&chat_id).unwrap() {
-            None => Vec::new(),
-            Some(vec) => serde_json::from_slice(vec.as_ref())?,
-        };
+        let mut messages = self.messages.get(&chat_id)?.map_or(Vec::new(), identity);
         messages.push(msg.clone());
-        self.messages.insert(&chat_id, messages).unwrap();
+        self.messages.insert(&chat_id, messages)?;
         log::info!("message {:?} added to chat {:?}", &msg, &chat_id);
         Ok(())
     }
 
+    pub fn add_imported_message(
+        &self,
+        chat_name: ChatName,
+        msg: ChatMessage,
+    ) -> Result<(), MainError> {
+        let mut messages = self
+            .imported_messages
+            .get(&chat_name)?
+            .map_or(Vec::new(), identity);
+        messages.push(msg.clone());
+        self.imported_messages.insert(&chat_name, messages)?;
+        log::info!("imported message {:?} added to chat {:?}", &msg, &chat_name);
+        Ok(())
+    }
+
+    pub fn clear_messages(&self, chat_id: ChatId) -> Result<(), MainError> {
+        self.messages.insert(&chat_id, Vec::<ChatMessage>::new())?;
+        log::info!("messages cleared in chat {:?}", &chat_id);
+        Ok(())
+    }
+
+    pub fn clear_imported_messages(&self, chat: ChatName) -> Result<(), MainError> {
+        self.imported_messages
+            .insert(&chat, Vec::<ChatMessage>::new())?;
+        log::info!("imported messages cleared in chat {:?}", &chat);
+        Ok(())
+    }
+
+    pub fn get_messages(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>, MainError> {
+        Ok(self.messages.get(&chat_id)?.map_or(Vec::new(), identity))
+    }
+
+    //pub fn get_imported_messages(
+    //    &self,
+    //    chat_name: ChatName,
+    //) -> Result<Vec<ChatMessage>, MainError> {
+    //    Ok(self
+    //        .imported_messages
+    //        .get(&chat_name)?
+    //        .map_or(Vec::new(), identity))
+    //}
+
+    pub fn messages_imported_to_regular(
+        &self,
+        chat_name: ChatName,
+        chat_id: ChatId,
+    ) -> Result<(), MainError> {
+        let imported = self.imported_messages.get(&chat_name)?;
+        match imported {
+            Some(v) => self.messages.insert(&chat_id, v)?,
+            None => (),
+        };
+        self.was_chat_imported.insert(&chat_id, true)?;
+        log::info!(
+            "converted imported messages from chat {:?} to chat {:?}",
+            &chat_name,
+            &chat_id
+        );
+        Ok(())
+    }
+
+    pub fn is_chat_imported(&self, chat_id: ChatId) -> Result<bool, MainError> {
+        Ok(self
+            .was_chat_imported
+            .get(&chat_id)?
+            .map_or(false, identity))
+    }
+
+    pub fn reset_imported(&self, chat_id: ChatId) -> Result<(), MainError> {
+        Ok(self.was_chat_imported.insert(&chat_id, false)?)
+    }
+
     pub fn add_user(&self, chat_id: ChatId, user: CodeUser) -> Result<(), MainError> {
-        let mut map = match self.users.get(&chat_id).unwrap() {
+        let mut map = match self.users.get(&chat_id)? {
             None => HashMap::new(),
-            Some(val) => serde_json::from_slice(val.as_ref())?,
+            Some(val) => val,
         };
         let user1 = user.clone();
         map.insert(user1.telegram_id, user1);
-        self.users.insert(&chat_id, map).unwrap();
+        self.users.insert(&chat_id, map)?;
         log::info!("user {:?} added in chat {:?}", &user, &chat_id);
         Ok(())
     }
 
     pub fn remove_user(&self, chat_id: ChatId, user_to_remove: UserId) -> Result<(), MainError> {
-        let mut users: HashMap<UserId, CodeUser> = self
-            .users
-            .get(&chat_id)
-            .unwrap()
-            .map_or(Ok(HashMap::new()), |v| -> Result<_, serde_json::Error> {
-                Ok(serde_json::from_slice(v.as_ref())?)
-            })?;
+        let mut users: HashMap<UserId, CodeUser> =
+            self.users.get(&chat_id)?.map_or(HashMap::new(), identity);
         users.remove(&user_to_remove);
-        self.users.insert(&chat_id, users).unwrap();
+        self.users.insert(&chat_id, users)?;
         log::info!("user {:?} removed in chat {:?}", &user_to_remove, &chat_id);
         Ok(())
     }
@@ -99,33 +171,7 @@ impl Persist {
         Ok(())
     }
 
-    //pub fn clear_imported_messages(&self, chat_id: ChatId) -> Result<(), MainError> {
-    //    self.imported_messages
-    //        .insert(&chat_id, Vec::<ChatMessage>::new())?;
-    //    log::info!("messages cleared in chat {:?}", &chat_id);
-    //    Ok(())
-    //}
-
-    pub fn clear_messages(&self, chat_id: ChatId) -> Result<(), MainError> {
-        self.messages.insert(&chat_id, Vec::<ChatMessage>::new())?;
-        log::info!("messages cleared in chat {:?}", &chat_id);
-        Ok(())
-    }
-
     pub fn get_users(&self, chat_id: ChatId) -> Result<HashMap<UserId, CodeUser>, MainError> {
-        Ok(self
-            .users
-            .get(&chat_id)
-            .unwrap()
-            .map_or(Ok(HashMap::new()), |v| -> Result<_, serde_json::Error> {
-                Ok(serde_json::from_slice(v.as_ref())?)
-            })?)
-    }
-
-    pub fn get_messages(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>, MainError> {
-        Ok(match self.messages.get(&chat_id).unwrap() {
-            Some(vec) => serde_json::from_slice(vec.as_ref())?,
-            None => Vec::new(),
-        })
+        Ok(self.users.get(&chat_id)?.map_or(HashMap::new(), identity))
     }
 }

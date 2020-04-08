@@ -11,7 +11,7 @@ pub struct ChatsData {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChatData {
-    pub name: String,
+    pub name: Option<String>,
     pub id: i64,
     pub messages: Vec<MessageData>,
 }

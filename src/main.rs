@@ -1,4 +1,4 @@
-use crate::db::{ChatId, ChatMessage, CodeUser, Persist, UserId};
+use crate::db::{ChatId, ChatMessage, ChatName, CodeUser, Persist, UserId};
 use crate::error::{CodewarsApiError, MainError};
 use crate::message_parse::{is_codewars_solution, kata_name};
 use crate::parsing_types::{Text, TextData};
@@ -15,7 +15,7 @@ use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
 use teloxide::prelude::*;
-use teloxide::types::{InputFile, MessageKind};
+use teloxide::types::{ChatKind, InputFile, MessageKind};
 use teloxide::utils::command::BotCommand;
 use tokio::prelude::*;
 
@@ -61,10 +61,11 @@ async fn main() -> Result<(), MainError> {
         .chain(fern::log_file("logs.log")?)
         .apply()?;
 
+    let was_imported = sled::open("was_imported")?;
     let imported = sled::open("imported_msgs")?;
     let messages = sled::open("messages")?;
     let db = sled::open("users")?;
-    let persist = Arc::new(Persist::new(db, messages, imported));
+    let persist = Arc::new(Persist::new(db, messages, imported, was_imported));
 
     // remove tmp dir
     let tmp = Path::new("tmp/");
@@ -79,34 +80,40 @@ async fn main() -> Result<(), MainError> {
         let messages = std::fs::read_to_string(data_path).unwrap();
         let data: ExportedData = serde_json::from_str(messages.as_str()).unwrap();
         for chat in data.chats.list.iter() {
-            persist.clear_messages(ChatId(chat.id)).unwrap();
-            for msg in chat.messages.iter().filter(|msg| msg.msg_type == "message") {
-                let msg_text = match msg.text.as_ref().unwrap() {
-                    Text::String(s) => s.clone(),
-                    Text::Links(vec) => vec
-                        .iter()
-                        .map(|t| {
-                            match t {
-                                TextData::String(s) => s,
-                                TextData::Typed { text, .. } => text,
-                            }
-                            .clone()
-                        })
-                        .collect::<Vec<_>>()
-                        .join(""),
-                };
+            if let Some(ref chat_name) = chat.name {
+                persist.clear_messages(ChatId(chat.id)).unwrap();
+                persist
+                    .clear_imported_messages(ChatName(chat_name.clone()))
+                    .unwrap();
+                persist.reset_imported(ChatId(chat.id)).unwrap();
+                for msg in chat.messages.iter().filter(|msg| msg.msg_type == "message") {
+                    let msg_text = match msg.text.as_ref().unwrap() {
+                        Text::String(s) => s.clone(),
+                        Text::Links(vec) => vec
+                            .iter()
+                            .map(|t| {
+                                match t {
+                                    TextData::String(s) => s,
+                                    TextData::Typed { text, .. } => text,
+                                }
+                                .clone()
+                            })
+                            .collect::<Vec<_>>()
+                            .join(""),
+                    };
 
-                if is_codewars_solution(msg_text.as_str()) {
-                    persist
-                        .add_message(
-                            ChatId(chat.id),
-                            ChatMessage {
-                                id: msg.id,
-                                from: UserId(msg.from_id.unwrap()),
-                                text: msg_text,
-                            },
-                        )
-                        .unwrap();
+                    if is_codewars_solution(msg_text.as_str()) {
+                        persist
+                            .add_imported_message(
+                                ChatName(chat_name.clone()),
+                                ChatMessage {
+                                    id: msg.id,
+                                    from: UserId(msg.from_id.unwrap()),
+                                    text: msg_text,
+                                },
+                            )
+                            .unwrap();
+                    }
                 }
             }
         }
@@ -154,18 +161,45 @@ async fn store_message(cx: DispatcherHandlerCx<Message>, db: Arc<Persist>) -> Re
 
 async fn handle_messages(rx: DispatcherHandlerRx<Message>, db: Arc<Persist>) {
     rx.for_each_concurrent(None, |cx| async {
-        if let Some(text) = cx.update.text() {
-            if let Some((command, args)) = Command::parse(text, "CodeWarsCheatStats_bot") {
-                // handle commands
-                answer_command(&cx, command, db.clone(), args)
-                    .await
-                    .log_on_error()
-                    .await;
-            } else {
-                // handle messages
-                store_message(cx, db.clone()).await.log_on_error().await;
+        async {
+            if let Some(text) = cx.update.text() {
+                // import messages for this chat
+                if !db.is_chat_imported(ChatId(cx.chat_id()))? {
+                    match match cx.update.chat.kind.clone() {
+                        ChatKind::NonPrivate {
+                            title: Some(title), ..
+                        } => Some(title),
+                        ChatKind::Private {
+                            first_name: Some(first_name),
+                            ..
+                        } => Some(first_name),
+                        _ => None,
+                    } {
+                        Some(chat_name) => db.messages_imported_to_regular(
+                            ChatName(chat_name),
+                            ChatId(cx.chat_id()),
+                        )?,
+                        None => (),
+                    }
+                }
+
+                // handle message
+                if let Some((command, args)) = Command::parse(text, "CodeWarsCheatStats_bot") {
+                    // handle commands
+                    answer_command(&cx, command, db.clone(), args)
+                        .await
+                        .log_on_error()
+                        .await;
+                } else {
+                    // handle messages
+                    store_message(cx, db.clone()).await.log_on_error().await;
+                }
             }
+            Result::<_, MainError>::Ok(())
         }
+        .await
+        .log_on_error()
+        .await;
     })
     .await;
 }
