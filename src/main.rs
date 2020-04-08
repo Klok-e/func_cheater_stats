@@ -342,14 +342,14 @@ async fn answer_command(
                             "The following katas were solved:\n{}",
                             messages
                                 .into_iter()
-                                .map(|m| format!("[{}]({})", m.0, m.1))
+                                .map(|m| format!("<a href=\"{}\">{}</a>", m.1, m.0))
                                 .join("\n")
                         )
                     };
                     for answer in dbg!(utils::chunk_with_size(answer.as_str())) {
                         let mut m = cx.answer(answer);
-                        if std::env::var("DONT_SEND_MARKDOWN").map_or(true, |_| false) {
-                            m = m.parse_mode(ParseMode::MarkdownV2);
+                        if std::env::var("DONT_SEND_HTML").map_or(true, |_| false) {
+                            m = m.parse_mode(ParseMode::HTML);
                         }
                         m.disable_web_page_preview(true).send().await?;
                     }

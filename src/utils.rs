@@ -1,7 +1,7 @@
 use std::convert::identity;
 
 pub fn chunk_with_size(s: &str) -> Vec<String> {
-    const MAX_CHUNK_SIZE: usize = 1024;
+    const MAX_CHUNK_SIZE: usize = 2048;
 
     let mut chunks = vec!["".to_owned()];
     for line in s.lines() {

@@ -20,7 +20,10 @@ lazy_static! {
     static ref IS_SOLUTION_REGEX: regex::Regex =
         regex::Regex::new(r"^\d\D*https://pastebin.com/").unwrap();
     static ref KATA_KYU: regex::Regex = regex::Regex::new(r"^\d(?:\s*kyu|\s)").unwrap();
-    static ref LINK: regex::Regex = regex::Regex::new(r"https://pastebin\.com/(.|\s)*").unwrap();
+    static ref JUST_LINK: regex::Regex =
+        regex::Regex::new(r"https://pastebin\.com/[a-zA-Z\d]*").unwrap();
+    static ref LINK_AND_EVERYTHING_AFTER: regex::Regex =
+        regex::Regex::new(r"https://pastebin\.com/(.|\s)*").unwrap();
 }
 
 pub fn is_codewars_solution(msg: &str) -> bool {
@@ -31,10 +34,10 @@ pub fn kata_name_link(msg: &str) -> (String, String) {
     if !is_codewars_solution(msg) {
         panic!("Text {} is not a codewars solution", msg);
     }
-    let link = LINK
+    let link = JUST_LINK
         .find(msg.as_ref())
         .expect(format!("Link not found in {}", msg).as_str());
-    let name = LINK.replace(msg.as_ref(), "");
+    let name = LINK_AND_EVERYTHING_AFTER.replace(msg.as_ref(), "");
     (
         name.trim().replace("\n", " "),
         link.as_str().trim().replace("\n", " "),
