@@ -35,5 +35,8 @@ pub fn kata_name_link(msg: &str) -> (String, String) {
         .find(msg.as_ref())
         .expect(format!("Link not found in {}", msg).as_str());
     let name = LINK.replace(msg.as_ref(), "");
-    (name.trim().to_owned(), link.as_str().trim().to_owned())
+    (
+        name.trim().replace("\n", " "),
+        link.as_str().trim().replace("\n", " "),
+    )
 }
