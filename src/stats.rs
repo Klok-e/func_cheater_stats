@@ -38,10 +38,7 @@ pub async fn compute_stats(
     let bars: Vec<repr::BarChart> = user_stats
         .into_iter()
         .map(|(u, so, se)| {
-            let label = once(Some(u.firstname))
-                .chain(once(u.username))
-                .flatten()
-                .join("_");
+            let label = u.firstname;
             once(
                 repr::BarChart::new(so as f64)
                     .label(format!("{} solved", label))
@@ -64,8 +61,8 @@ pub async fn compute_stats(
                 .as_slice(),
         )
         .y_range(0., maxy as f64)
-        .x_label("user")
-        .y_label("katas");
+        .x_label("users")
+        .y_label("katas").;
     for bar in bars {
         view = view.add(bar)
     }
