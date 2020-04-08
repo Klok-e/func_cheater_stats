@@ -1,6 +1,6 @@
 use crate::db::{ChatId, ChatMessage, ChatName, CodeUser, Persist, UserId};
 use crate::error::{CodewarsApiError, MainError};
-use crate::message_parse::{is_codewars_solution, kata_name};
+use crate::message_parse::{is_codewars_solution, kata_name_link};
 use crate::parsing_types::{Text, TextData};
 use crate::stats::compute_stats;
 use derive_more::{Display, Error, From};
@@ -15,7 +15,7 @@ use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
 use teloxide::prelude::*;
-use teloxide::types::{ChatKind, InputFile, MessageKind};
+use teloxide::types::{ChatKind, InputFile, MessageKind, ParseMode};
 use teloxide::utils::command::BotCommand;
 use tokio::prelude::*;
 
@@ -320,14 +320,23 @@ async fn answer_command(
                     } else {
                         let messages: Vec<_> = messages
                             .into_iter()
-                            .map(|msg| kata_name(msg.text.as_str()))
+                            .map(|msg| kata_name_link(msg.text.as_str()))
                             .unique()
                             .sorted()
                             .collect();
-                        format!("The following katas were solved:\n{}", messages.join("\n"))
+                        format!(
+                            "The following katas were solved:\n{}",
+                            messages
+                                .into_iter()
+                                .map(|m| format!("[{}]({})", m.0, m.1))
+                                .join("\n")
+                        )
                     };
 
-                    cx.answer(answer).send().await?;
+                    cx.answer(answer)
+                        .parse_mode(ParseMode::MarkdownV2)
+                        .send()
+                        .await?;
                 }
             }
         }

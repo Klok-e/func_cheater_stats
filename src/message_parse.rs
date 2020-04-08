@@ -27,11 +27,13 @@ pub fn is_codewars_solution(msg: &str) -> bool {
     IS_SOLUTION_REGEX.is_match(msg)
 }
 
-pub fn kata_name(msg: &str) -> String {
+pub fn kata_name_link(msg: &str) -> (String, String) {
     if !is_codewars_solution(msg) {
         panic!("Text {} is not a codewars solution", msg);
     }
-    let name_link = KATA_KYU.replace(msg, "");
-    let name = LINK.replace(name_link.as_ref(), "");
-    name.trim().to_owned()
+    let link = LINK
+        .find(msg.as_ref())
+        .expect(format!("Link not found in {}", msg).as_str());
+    let name = LINK.replace(msg.as_ref(), "");
+    (name.trim().to_owned(), link.as_str().trim().to_owned())
 }
