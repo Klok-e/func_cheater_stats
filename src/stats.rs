@@ -64,7 +64,7 @@ pub async fn compute_stats(
         .x_label("users")
         .y_label("katas");
 
-    const SIZE_MULT: u32 = 4;
+    const SIZE_MULT: u32 = 2;
     const SPACE_LEN: u32 = 40;
     let width = bars
         .iter()
