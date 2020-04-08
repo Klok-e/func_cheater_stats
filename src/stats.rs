@@ -1,7 +1,6 @@
 use crate::codewars_requests::get_completed;
 use crate::db::{ChatMessage, CodeUser, UserId};
 use crate::error::MainError;
-use crate::message_parse::kata_name;
 use itertools::Itertools;
 use plotlib::grid::Grid;
 use plotlib::style::BoxStyle;
