@@ -62,10 +62,23 @@ async fn main() -> Result<(), MainError> {
         .chain(fern::log_file("logs.log")?)
         .apply()?;
 
-    let was_imported = sled::open("was_imported")?;
-    let imported = sled::open("imported_msgs")?;
-    let messages = sled::open("messages")?;
-    let db = sled::open("users")?;
+    let cache_size = 1024 * 1024 * 256;
+    let was_imported = sled::Config::new()
+        .cache_capacity(cache_size)
+        .path("was_imported")
+        .open()?;
+    let imported = sled::Config::new()
+        .cache_capacity(cache_size)
+        .path("imported_msgs")
+        .open()?;
+    let messages = sled::Config::new()
+        .cache_capacity(cache_size)
+        .path("messages")
+        .open()?;
+    let db = sled::Config::new()
+        .cache_capacity(cache_size)
+        .path("users")
+        .open()?;
     let persist = Arc::new(Persist::new(db, messages, imported, was_imported));
 
     // remove tmp dir
