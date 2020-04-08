@@ -32,7 +32,7 @@ pub async fn compute_stats(
             .count();
         user_stats.push((user.clone(), solved_in_scala.len(), sent_to_chat));
 
-        maxy = solved_in_scala.len().max(sent_to_chat);
+        maxy = maxy.max(solved_in_scala.len().max(sent_to_chat));
     }
 
     let bars: Vec<repr::BarChart> = user_stats
