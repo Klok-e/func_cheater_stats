@@ -73,7 +73,9 @@ pub async fn compute_stats(
     for bar in bars {
         view = view.add(bar)
     }
-    Ok(to_image(page::Page::single(&view).dimensions(width, 600)))
+    Ok(to_image(
+        page::Page::single(&view).dimensions(600.max(width), 600),
+    ))
 }
 
 fn to_image(page: page::Page) -> PathBuf {

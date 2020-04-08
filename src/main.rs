@@ -26,6 +26,7 @@ mod message_parse;
 mod parsing_types;
 mod stats;
 mod typed_db;
+mod utils;
 
 #[derive(BotCommand)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -332,11 +333,13 @@ async fn answer_command(
                                 .join("\n")
                         )
                     };
-
-                    cx.answer(answer)
-                        .parse_mode(ParseMode::MarkdownV2)
-                        .send()
-                        .await?;
+                    for answer in dbg!(utils::chunk_with_size(answer.as_str())) {
+                        let mut m = cx.answer(answer);
+                        if std::env::var("DONT_SEND_MARKDOWN").map_or(true, |_| false) {
+                            m = m.parse_mode(ParseMode::MarkdownV2);
+                        }
+                        m.disable_web_page_preview(true).send().await?;
+                    }
                 }
             }
         }
