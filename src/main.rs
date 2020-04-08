@@ -25,6 +25,7 @@ mod error;
 mod message_parse;
 mod parsing_types;
 mod stats;
+mod typed_db;
 
 #[derive(BotCommand)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -60,9 +61,10 @@ async fn main() -> Result<(), MainError> {
         .chain(fern::log_file("logs.log")?)
         .apply()?;
 
+    let imported = sled::open("imported_msgs")?;
     let messages = sled::open("messages")?;
     let db = sled::open("users")?;
-    let persist = Arc::new(Persist::new(db, messages));
+    let persist = Arc::new(Persist::new(db, messages, imported));
 
     // remove tmp dir
     let tmp = Path::new("tmp/");
@@ -142,7 +144,7 @@ async fn store_message(cx: DispatcherHandlerCx<Message>, db: Arc<Persist>) -> Re
                 Err(e) => log::warn!("Error while processing messages: {}", e),
             }
 
-            cx.answer("Registered!").send().await?;
+        //cx.answer("Registered!").send().await?;
         } else {
             log::info!("{} ----- isn't a codewars solution", text);
         }
