@@ -45,7 +45,7 @@ pub struct Persist {
     users: TypedDb<ChatId, HashMap<UserId, CodeUser>>,
     messages: TypedDb<ChatId, Vec<ChatMessage>>,
     imported_messages: TypedDb<ChatName, Vec<ChatMessage>>,
-    was_chat_imported: TypedDb<ChatId, bool>,
+    was_chat_imported: TypedDb<ChatName, bool>,
 }
 
 impl Persist {
@@ -123,7 +123,7 @@ impl Persist {
             Some(v) => self.messages.insert(&chat_id, v)?,
             None => (),
         };
-        self.was_chat_imported.insert(&chat_id, true)?;
+        self.was_chat_imported.insert(&chat_name, true)?;
         log::info!(
             "converted imported messages from chat {:?} to chat {:?}",
             &chat_name,
@@ -132,15 +132,16 @@ impl Persist {
         Ok(())
     }
 
-    pub fn is_chat_imported(&self, chat_id: ChatId) -> Result<bool, MainError> {
+    pub fn is_chat_imported(&self, chat_name: ChatName) -> Result<bool, MainError> {
         Ok(self
             .was_chat_imported
-            .get(&chat_id)?
+            .get(&chat_name)?
             .map_or(false, identity))
     }
 
-    pub fn reset_imported(&self, chat_id: ChatId) -> Result<(), MainError> {
-        Ok(self.was_chat_imported.insert(&chat_id, false)?)
+    pub fn reset_imported(&self, chat_name: ChatName) -> Result<(), MainError> {
+        log::info!("reset is_imported for chat {:?}", chat_name);
+        Ok(self.was_chat_imported.insert(&chat_name, false)?)
     }
 
     pub fn add_user(&self, chat_id: ChatId, user: CodeUser) -> Result<(), MainError> {

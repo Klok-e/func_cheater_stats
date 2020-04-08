@@ -85,7 +85,7 @@ async fn main() -> Result<(), MainError> {
                 persist
                     .clear_imported_messages(ChatName(chat_name.clone()))
                     .unwrap();
-                persist.reset_imported(ChatId(chat.id)).unwrap();
+                persist.reset_imported(ChatName(chat_name.clone())).unwrap();
                 for msg in chat.messages.iter().filter(|msg| msg.msg_type == "message") {
                     let msg_text = match msg.text.as_ref().unwrap() {
                         Text::String(s) => s.clone(),
@@ -164,24 +164,26 @@ async fn handle_messages(rx: DispatcherHandlerRx<Message>, db: Arc<Persist>) {
         async {
             if let Some(text) = cx.update.text() {
                 // import messages for this chat
-                if !db.is_chat_imported(ChatId(cx.chat_id()))? {
-                    match match cx.update.chat.kind.clone() {
-                        ChatKind::NonPrivate {
-                            title: Some(title), ..
-                        } => Some(title),
-                        ChatKind::Private {
-                            first_name: Some(first_name),
-                            ..
-                        } => Some(first_name),
-                        _ => None,
-                    } {
-                        Some(chat_name) => db.messages_imported_to_regular(
-                            ChatName(chat_name),
-                            ChatId(cx.chat_id()),
-                        )?,
-                        None => (),
+                match match cx.update.chat.kind.clone() {
+                    ChatKind::NonPrivate {
+                        title: Some(title), ..
+                    } => Some(title),
+                    ChatKind::Private {
+                        first_name: Some(first_name),
+                        ..
+                    } => Some(first_name),
+                    _ => None,
+                } {
+                    Some(chat_name) => {
+                        if !db.is_chat_imported(ChatName(chat_name.clone()))? {
+                            db.messages_imported_to_regular(
+                                ChatName(chat_name),
+                                ChatId(cx.chat_id()),
+                            )?
+                        }
                     }
-                }
+                    None => (),
+                };
 
                 // handle message
                 if let Some((command, args)) = Command::parse(text, "CodeWarsCheatStats_bot") {
