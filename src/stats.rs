@@ -62,7 +62,7 @@ pub async fn compute_stats(
         )
         .y_range(0., maxy as f64)
         .x_label("users")
-        .y_label("katas").;
+        .y_label("katas");
     for bar in bars {
         view = view.add(bar)
     }
