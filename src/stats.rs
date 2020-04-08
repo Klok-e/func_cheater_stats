@@ -63,10 +63,18 @@ pub async fn compute_stats(
         .y_range(0., maxy as f64)
         .x_label("users")
         .y_label("katas");
+
+    const SIZE_MULT: u32 = 1;
+    const SPACE_LEN: u32 = 20;
+    let width = bars
+        .iter()
+        .map(|bar| (bar.get_label().chars().count() as u32 + SPACE_LEN) * SIZE_MULT)
+        .sum();
+
     for bar in bars {
         view = view.add(bar)
     }
-    Ok(to_image(page::Page::single(&view)))
+    Ok(to_image(page::Page::single(&view).dimensions(width, 600)))
 }
 
 fn to_image(page: page::Page) -> PathBuf {
