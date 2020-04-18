@@ -348,7 +348,7 @@ async fn answer_command(
                                 .join("\n")
                         )
                     };
-                    for answer in dbg!(utils::chunk_with_size(answer.as_str())) {
+                    for answer in utils::chunk_with_size(answer.as_str()) {
                         let mut m = cx.answer(answer);
                         if std::env::var("DONT_SEND_HTML").map_or(true, |_| false) {
                             m = m.parse_mode(ParseMode::HTML);
