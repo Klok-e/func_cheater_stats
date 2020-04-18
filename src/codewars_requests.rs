@@ -14,10 +14,11 @@ pub async fn get_honor(username: &str) -> Result<i64, MainError> {
         }?)
     }
     let honor: CodewarsHonorResponse = serde_json::from_str(
-        reqwest::get(&format!(
-            "https://www.codewars.com/api/v1/users/{}",
-            username
-        ))
+        reqwest::get(&{
+            let url = format!("https://www.codewars.com/api/v1/users/{}", username);
+            log::info!("Request: {}", &url);
+            url
+        })
         .await?
         .text()
         .await?
