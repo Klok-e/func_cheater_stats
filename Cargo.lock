@@ -382,6 +382,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "fern",
+ "futures",
  "itertools",
  "lazy_static",
  "log",

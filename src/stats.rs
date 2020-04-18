@@ -1,6 +1,7 @@
-use crate::codewars_requests::get_completed;
+use crate::codewars_requests::{get_completed, get_honor};
 use crate::db::{ChatMessage, CodeUser, UserId};
 use crate::error::MainError;
+use futures::future::join_all;
 use itertools::Itertools;
 use plotlib::grid::Grid;
 use plotlib::style::BoxStyle;
@@ -8,10 +9,61 @@ use plotlib::view::View;
 use plotlib::{page, repr, style, view};
 use resvg::usvg;
 use std::collections::HashMap;
+use std::future::Future;
 use std::iter::once;
 use std::path::{Path, PathBuf};
 use svg;
 use uuid;
+
+const SIZE_MULT: u32 = 2;
+const SPACE_LEN: u32 = 40;
+
+pub async fn compute_honor(users: HashMap<UserId, CodeUser>) -> Result<PathBuf, MainError> {
+    let honors = join_all(users.values().cloned().map(|u: CodeUser| async {
+        let u = u;
+        Result::<_, MainError>::Ok((
+            get_honor(u.codewars_name.as_str()).await?,
+            u.firstname.to_owned(),
+        ))
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+
+    let maxy = honors.iter().map(|hn| hn.0).max().unwrap_or(50);
+    let bars = honors
+        .iter()
+        .map(|(h, n)| {
+            repr::BarChart::new(*h as f64)
+                .label(n.to_owned())
+                .style(&BoxStyle::new().fill("blue"))
+        })
+        .collect::<Vec<_>>();
+
+    let mut view = view::CategoricalView::new()
+        //.x_ticks(
+        //    bars.iter()
+        //        .map(|b| b.get_label().clone())
+        //        .collect::<Vec<_>>()
+        //        .as_slice(),
+        //)
+        .y_range(0., maxy as f64)
+        .x_label("users")
+        .y_label("honor");
+
+    let width = bars
+        .iter()
+        .map(|bar| (bar.get_label().chars().count() as u32 + SPACE_LEN) * SIZE_MULT)
+        .sum();
+
+    for bar in bars {
+        view = view.add(bar)
+    }
+
+    Ok(to_image(
+        page::Page::single(&view).dimensions(600.max(width), 600),
+    ))
+}
 
 pub async fn compute_stats(
     users: HashMap<UserId, CodeUser>,
@@ -53,18 +105,16 @@ pub async fn compute_stats(
         .collect();
 
     let mut view = view::CategoricalView::new()
-        .x_ticks(
-            bars.iter()
-                .map(|b| b.get_label().clone())
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )
+        //.x_ticks(
+        //    bars.iter()
+        //        .map(|b| b.get_label().clone())
+        //        .collect::<Vec<_>>()
+        //        .as_slice(),
+        //)
         .y_range(0., maxy as f64)
         .x_label("users")
         .y_label("katas");
 
-    const SIZE_MULT: u32 = 2;
-    const SPACE_LEN: u32 = 40;
     let width = bars
         .iter()
         .map(|bar| (bar.get_label().chars().count() as u32 + SPACE_LEN) * SIZE_MULT)

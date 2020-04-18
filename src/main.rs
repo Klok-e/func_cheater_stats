@@ -2,7 +2,7 @@ use crate::db::{ChatId, ChatMessage, ChatName, CodeUser, Persist, UserId};
 use crate::error::{CodewarsApiError, MainError};
 use crate::message_parse::{is_codewars_solution, kata_name_link};
 use crate::parsing_types::{Text, TextData};
-use crate::stats::compute_stats;
+use crate::stats::{compute_honor, compute_stats};
 use derive_more::{Display, Error, From};
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -43,6 +43,8 @@ enum Command {
     ShowStats,
     #[command(description = "show solved")]
     ShowSolved,
+    #[command(description = "show honor")]
+    ShowHonor,
 }
 
 #[tokio::main]
@@ -353,6 +355,29 @@ async fn answer_command(
                         }
                         m.disable_web_page_preview(true).send().await?;
                     }
+                }
+                Command::ShowHonor => {
+                    if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
+                        match compute_honor(us).await {
+                            Ok(path) => {
+                                cx.answer_photo(InputFile::file(path)).send().await?;
+                            }
+                            Err(MainError::CodewarsApi(CodewarsApiError::NotFound(name))) => {
+                                cx.answer(format!("User not found in Codewars API: {}", name))
+                                    .send()
+                                    .await?;
+                            }
+                            Err(e) => {
+                                cx.answer(format!("Error while getting stats: {}", e))
+                                    .send()
+                                    .await?;
+                            }
+                        }
+                    } else {
+                        cx.answer("Couldn't get user data due to an internal error")
+                            .send()
+                            .await?;
+                    };
                 }
             }
         }
