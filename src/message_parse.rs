@@ -18,7 +18,7 @@ use tokio::prelude::*;
 
 lazy_static! {
     static ref IS_SOLUTION_REGEX: regex::Regex =
-        regex::Regex::new(r"^\d\D*https://pastebin.com/").unwrap();
+        regex::Regex::new(r"^\d[\s\S]*?https://pastebin\.com/").unwrap();
     static ref KATA_KYU: regex::Regex = regex::Regex::new(r"^\d(?:\s*kyu|\s)").unwrap();
     static ref JUST_LINK: regex::Regex =
         regex::Regex::new(r"https://pastebin\.com/[a-zA-Z\d]*").unwrap();
