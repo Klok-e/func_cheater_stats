@@ -4,7 +4,7 @@ use crate::message_parse::{is_codewars_solution, kata_name_link};
 use crate::parsing_types::{Text, TextData};
 use crate::stats::{compute_honor, compute_stats};
 use itertools::Itertools;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::types::{ChatKind, InputFile, MessageKind, ParseMode};
@@ -219,6 +219,28 @@ async fn answer_command(
     db: Arc<Persist>,
     args: Vec<&str>,
 ) -> ResponseResult<()> {
+    async fn answer_image(
+        cx: &DispatcherHandlerCx<Message>,
+        img_path: Result<PathBuf, MainError>,
+    ) -> ResponseResult<()> {
+        match img_path {
+            Ok(path) => {
+                cx.answer_photo(InputFile::file(path)).send().await?;
+            }
+            Err(MainError::CodewarsApi(CodewarsApiError::NotFound(name))) => {
+                cx.answer(format!("User not found in Codewars API: {}", name))
+                    .send()
+                    .await?;
+            }
+            Err(e) => {
+                cx.answer(format!("Error while getting stats: {}", e))
+                    .send()
+                    .await?;
+            }
+        };
+        Ok(())
+    }
+
     if let MessageKind::Common { ref from, .. } = cx.update.kind {
         if let Some(from) = from {
             match command {
@@ -283,21 +305,7 @@ async fn answer_command(
                 Command::ShowStats => {
                     if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
                         if let Ok(msg) = db.get_messages(ChatId(cx.chat_id())) {
-                            match compute_stats(us, msg).await {
-                                Ok(path) => {
-                                    cx.answer_photo(InputFile::file(path)).send().await?;
-                                }
-                                Err(MainError::CodewarsApi(CodewarsApiError::NotFound(name))) => {
-                                    cx.answer(format!("User not found in Codewars API: {}", name))
-                                        .send()
-                                        .await?;
-                                }
-                                Err(e) => {
-                                    cx.answer(format!("Error while getting stats: {}", e))
-                                        .send()
-                                        .await?;
-                                }
-                            }
+                            answer_image(cx, compute_stats(us, msg).await).await?;
                         } else {
                             cx.answer("Internal error 1").send().await?;
                         }
@@ -350,21 +358,7 @@ async fn answer_command(
                 }
                 Command::ShowHonor => {
                     if let Ok(us) = db.get_users(ChatId(cx.chat_id())) {
-                        match compute_honor(us).await {
-                            Ok(path) => {
-                                cx.answer_photo(InputFile::file(path)).send().await?;
-                            }
-                            Err(MainError::CodewarsApi(CodewarsApiError::NotFound(name))) => {
-                                cx.answer(format!("User not found in Codewars API: {}", name))
-                                    .send()
-                                    .await?;
-                            }
-                            Err(e) => {
-                                cx.answer(format!("Error while getting stats: {}", e))
-                                    .send()
-                                    .await?;
-                            }
-                        }
+                        answer_image(cx, compute_honor(us).await).await?;
                     } else {
                         cx.answer("Couldn't get user data due to an internal error")
                             .send()
