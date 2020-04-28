@@ -1,20 +1,5 @@
-use crate::db::{ChatId, ChatMessage, CodeUser, Persist, UserId};
-use crate::error::MainError;
-use crate::parsing_types::{Text, TextData};
-use derive_more::{Display, Error, From};
 use lazy_static::lazy_static;
 use regex;
-use serde::{Deserialize, Serialize};
-use sled::IVec;
-use smart_default::SmartDefault;
-use std::collections::HashMap;
-use std::error::Error;
-use std::path::Path;
-use std::sync::Arc;
-use teloxide::prelude::*;
-use teloxide::types::MessageKind;
-use teloxide::utils::command::BotCommand;
-use tokio::prelude::*;
 
 lazy_static! {
     static ref IS_SOLUTION_REGEX: regex::Regex =
@@ -35,11 +20,84 @@ pub fn kata_name_link(msg: &str) -> (String, String) {
         panic!("Text {} is not a codewars solution", msg);
     }
     let link = JUST_LINK
-        .find(msg.as_ref())
+        .find(msg)
         .expect(format!("Link not found in {}", msg).as_str());
-    let name = LINK_AND_EVERYTHING_AFTER.replace(msg.as_ref(), "");
+    let name = LINK_AND_EVERYTHING_AFTER.replace(msg, "");
     (
         name.trim().replace("\n", " "),
         link.as_str().trim().replace("\n", " "),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kata_name_link_test1() {
+        let message = "7
+Functions of Integers on Cartesian Plane
+https://pastebin.com/nRkGjfp5";
+
+        assert!(is_codewars_solution(message));
+
+        assert_eq!(
+            kata_name_link(message),
+            (
+                "7 Functions of Integers on Cartesian Plane".to_owned(),
+                "https://pastebin.com/nRkGjfp5".to_owned()
+            )
+        )
+    }
+
+    #[test]
+    fn kata_name_link_test2() {
+        let message = "7
+Robinson Crusoe
+https://pastebin.com/fZHdUbhT";
+
+        assert!(is_codewars_solution(message));
+
+        assert_eq!(
+            kata_name_link(message),
+            (
+                "7 Robinson Crusoe".to_owned(),
+                "https://pastebin.com/fZHdUbhT".to_owned()
+            )
+        )
+    }
+
+    #[test]
+    fn kata_name_link_test3() {
+        let message = "6
+Replace With Alphabet Position
+https://pastebin.com/8hPWe1L6";
+
+        assert!(is_codewars_solution(message));
+
+        assert_eq!(
+            kata_name_link(message),
+            (
+                "6 Replace With Alphabet Position".to_owned(),
+                "https://pastebin.com/8hPWe1L6".to_owned()
+            )
+        )
+    }
+
+    #[test]
+    fn kata_name_link_test4() {
+        let message = "6
+Create Phone Number
+https://pastebin.com/grekUgAs";
+
+        assert!(is_codewars_solution(message));
+
+        assert_eq!(
+            kata_name_link(message),
+            (
+                "6 Create Phone Number".to_owned(),
+                "https://pastebin.com/grekUgAs".to_owned()
+            )
+        )
+    }
 }

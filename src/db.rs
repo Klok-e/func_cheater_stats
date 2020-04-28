@@ -1,21 +1,8 @@
 use crate::error::MainError;
-use crate::parsing_types::{Text, TextData};
 use crate::typed_db::TypedDb;
-use derive_more::{Display, Error, From};
-use lazy_static::lazy_static;
-use regex;
 use serde::{Deserialize, Serialize};
-use sled::IVec;
-use smart_default::SmartDefault;
 use std::collections::HashMap;
 use std::convert::identity;
-use std::error::Error;
-use std::path::Path;
-use std::sync::Arc;
-use teloxide::prelude::*;
-use teloxide::types::MessageKind;
-use teloxide::utils::command::BotCommand;
-use tokio::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Copy, Clone)]
 pub struct ChatId(pub i64);

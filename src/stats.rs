@@ -2,16 +2,12 @@ use crate::codewars_requests::{get_completed, get_honor};
 use crate::db::{ChatMessage, CodeUser, UserId};
 use crate::error::MainError;
 use futures::future::join_all;
-use itertools::Itertools;
-use plotlib::grid::Grid;
 use plotlib::style::BoxStyle;
-use plotlib::view::View;
-use plotlib::{page, repr, style, view};
+use plotlib::{page, repr, view};
 use resvg::usvg;
 use std::collections::HashMap;
-use std::future::Future;
 use std::iter::once;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use svg;
 use uuid;
 
