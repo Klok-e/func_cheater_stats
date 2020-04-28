@@ -16,7 +16,7 @@ use std::path::Path;
 use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::types::{ChatKind, InputFile, MessageKind, ParseMode};
-use teloxide::utils::command::BotCommand;
+use teloxide::utils::{command::BotCommand, html::link};
 use tokio::prelude::*;
 
 mod codewars_requests;
@@ -340,11 +340,12 @@ async fn answer_command(
                             .unique()
                             .sorted()
                             .collect();
+
                         format!(
                             "The following katas were solved:\n{}",
                             messages
                                 .into_iter()
-                                .map(|m| format!("<a href=\"{}\">{}</a>", m.1, m.0))
+                                .map(|m| link(&m.0.replace("\"", ""), &m.1))
                                 .join("\n")
                         )
                     };
