@@ -344,7 +344,7 @@ async fn answer_command(
                             "The following katas were solved:\n{}",
                             messages
                                 .into_iter()
-                                .map(|m| link(&m.0.replace("\"", ""), &m.1))
+                                .map(|m| link(&m.1.replace("\"", ""), &m.0))
                                 .join("\n")
                         )
                     };
